@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"name": "Candidates autonomous",
+			"path": "../../../PlatformIO/Projects/Candidates autonomous"
+		}
+	],
+	"settings": {}
+}
