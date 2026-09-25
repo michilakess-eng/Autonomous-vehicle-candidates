@@ -1,7 +1,7 @@
 #ifndef INTERRUPTS_H
 #define INTERRUPTS_H
 #include <Arduino.h>
-#include "config.h"
+#include "Config.h"
 
 //volatile varaibles
 volatile int gridSteps= 0;
@@ -27,7 +27,6 @@ void IRAM_ATTR onRightLineISR(){
     unsigned long now= millis();
     if(!isTurning && (now - lastRightIrTime > ir_debounce_ms)){
         rightLineHit= true;
-        gridSteps++; //cell counter on grid lines
         lastRightIrTime= now;
     }
 }

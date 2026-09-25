@@ -112,11 +112,11 @@ FloorColor Sensors::classifyColor(float r, float g, float b, uint16_t c){
 
     //subtractive logic. TEST AND CALLIBRATE
     if(r>0.45 && g<0.28 && b<0.28) return RED; //final casilla
-    if(r>0.42 && g<0.32 && b<0.22) return ORANGE;
-    if(r>0.36 && g<0.38 && b<0.22) return YELLOW;
-    if(r>0.28 && g<0.42 && b<0.28) return GREEN; //initial casilla
-    if(r>0.25 && g<0.35 && b<0.35) return CYAN;
-    if(r>0.35 && g<0.25 && b<0.35) return MAGENTA;
+    if(r>0.42 && g>0.32 && b<0.22) return ORANGE;
+    if(r>0.36 && g>0.38 && b<0.22) return YELLOW;
+    if(r<0.28 && g>0.42 && b<0.28) return GREEN; //initial casilla
+    if(r<0.25 && g>0.35 && b>0.35) return CYAN;
+    if(r>0.35 && g<0.25 && b>.35) return MAGENTA;
 
     return NONE;
 }
