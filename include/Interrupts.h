@@ -32,5 +32,13 @@ void IRAM_ATTR onRightLineISR(){
 }
 
 //missing setipInterruptor function that will be called in main. research due.
+inline void setupInterrupt(){
+    pinMode(IR_left_PIN, INPUT);
+    pinMode(IR_right_PIN, INPUT);
+
+    //electrical dependency, eaither CHANGE or FALLING
+    attachInterrupt(digitalPinToInterrupt(IR_left_PIN), onLeftLineISR, FALLING);
+    attachInterrupt(digitalPinToInterrupt(IR_right_PIN), onRightLineISR, FALLING);
+}
 
 #endif

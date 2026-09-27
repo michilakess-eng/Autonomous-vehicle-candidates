@@ -47,6 +47,26 @@ const int wall_stop_dist= 150; //test 15 cm
 const unsigned long ir_debounce_ms=  250; //min ms between grid line triggers
 const unsigned long color_cooldown_ms= 3000; //tile cooldown Pista A. maybe less time.
 
+//state machine and display configs
+const uint8_t LCD_ADDR= 0x27;
+const int BTN_LOP_PIN= 15;
+
+//wall threshold
+const int corridor_open_dist= 250;
+const int wall_too_close= 70;
+
+//core states 
+enum RobotState{
+    CALIBRATION,
+    PISTA_A,
+    PISTA_B_BALL,
+    PISTA_B_WDODGE, //dodging the white lines
+    PISTA_B_COLOR_NAV,
+    ROUND_COMPLETE,
+    LACK_OF_PROGRESS
+};
+
+
 //colors of both Pistas. RGB sensors research due.
 enum FloorColor{
     WHITE,
@@ -59,21 +79,4 @@ enum FloorColor{
     NONE
 };
 
-/*
-//core states 
-enum RobotState{
-    CALIBRATION,
-    PISTA_A,
-    PISTA_B_BALL,
-    PISTA_B_WDODGE, //dodging the white lines
-    PISTA_B_WGAP_SEEK,//seeking the gap between white lines
-    PISTA_B_COLOR_NAV,
-    EXECUTE_RIGHT,
-    EXECUTE_LEFT,
-    EXECUTE_180_TURN,
-    EXECUTE_FORWARD,
-    LACK_OF_PROGESS //va aqu[i??]
-};
-
-*/
 #endif
