@@ -1,12 +1,25 @@
 #ifndef SENSORS_H
 #define SENSORS_H
-#include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_VL53L0X.h>
 #include <Adafruit_TCS34725.h>
 #include <MPU6500_WE.h>
 #include "Config.h"
 
+//struct to return the tof readings in one same call
+struct ToFDistances{
+    uint16_t left;
+    uint16_t front;
+    uint16_t right;
+};
+
+//struct to hold the raw color values
+struct RGBValues{
+    uint16_t r,g,b,c;
+};
+
+//HAL class, learned in STM32 course.
+//main code calls simple functions, much cleaner
 class Sensors{
     private:
         Adafruit_VL53L0X tofLeft;
@@ -15,25 +28,32 @@ class Sensors{
         Adafruit_TCS34725 rgbSensor;
         MPU6500_WE imu;
 
-        unsigned long lastColorScoreTime;
-        FloorColor classifyColor(float r, float g, float b, uint16_t c);
+        void initToF();
+        void initIMU();
+        void initRGBs();
 
         public:
             Sensors();
-            bool begin();
+            void begin();
             
-            //ToF reading mm
-            int getLeftDist();
-            int getFrontDist();
-            int getRightDist();
-            bool isWallAhead();
+            //switch multiplexer to specific channelr 
+            void tcaselect(uint8_t channel);
 
-            //IMU
-            float getPitch();
-            MPU6500_WE& getIMU();
+            //read funcs
+            ToFDistances readToF();
+            RGBValues readRGB(uint8_t channel);
 
-            //RGB floor color
-            FloorColor readFloorColor(bool useCooldown);
+            //IMu
+            float getMaxTilt();
+            float getYaw();
+
+            //IR sensors
+            bool isLeftOuterBlack();
+            bool isRightOuterBlack();
+            bool isInnerFrontBlack();
+            bool isBackCornerBlack();
 };
 
+//global idgaf
+extern Sensors robotSensors;
 #endif

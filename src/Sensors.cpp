@@ -1,122 +1,128 @@
 #include "Sensors.h"
- Sensors::Sensors()
-    : rgbSensor(TCS34725_INTEGRATIONTIME_24MS, TCS34725_GAIN_4X),
-    imu(IMU_ADDR),
-    lastColorScoreTime(0){}
 
-bool Sensors::begin(){
-    Wire.begin(I2C_SDA, I2C_SCL);
+Sensors robotSensors;
 
-    //XSHUT must give unique I2C to not talk over each other
-    // shutdown, wakeup and change addressess
-    pinMode(TOF_left_XSHUT, OUTPUT);
-    pinMode(TOF_right_XSHUT, OUTPUT);
-    pinMode(TOF_front_XSHUT, OUTPUT);
+//imu initialize
+Sensors::Sensors():imu(IMU_ADDR){}
 
-    digitalWrite(TOF_left_XSHUT, LOW);
-    digitalWrite(TOF_right_XSHUT, LOW);
-    digitalWrite(TOF_front_XSHUT, LOW);
+void Sensors::begin(){
+    //start 12c bus
+    Wire.begin(I2C_SDA,I2C_SCL);
+
+    //Ir pins as digital inputs
+    pinMode(IR_outer_left,INPUT);
+    pinMode(IR_outer_right,INPUT);
+    pinMode(IR_inner_front,INPUT);
+    pinMode(IR_back_corner,INPUT);
+
+    //subsystems
+    initToF();
+    initIMU();
+    initRGBs();
+}
+
+//tells multiplexer which channel to open
+//and then shifting a bit to flip the swithc
+void Sensors::tcaselect(uint8_t channel){
+    if(channel>7) return;
+    Wire.beginTransmission(TCA9548A_ADDR);
+    Wire.write(1<<channel);
+    Wire.endTransmission();
+}
+    //TOF boot
+void Sensors::initToF(){
+    pinMode(TOF_left_XSHUT,OUTPUT);
+    pinMode(TOF_front_XSHUT,OUTPUT);
+    pinMode(TOF_right_XSHUT,OUTPUT);
+    
+    //reset
+    digitalWrite(TOF_left_XSHUT,LOW);
+    digitalWrite(TOF_front_XSHUT,LOW);
+    digitalWrite(TOF_right_XSHUT,LOW);
     delay(10);
-
-    //wake assign above order
-    digitalWrite(TOF_left_XSHUT, HIGH);
+    
+    // the rest assigns the unique adddress
+    digitalWrite(TOF_left_XSHUT,HIGH);
     delay(10);
-    if(!tofLeft.begin(TOF_left_ADDR)) return false;
-
-    digitalWrite(TOF_right_XSHUT, HIGH);
+    tofLeft.begin(TOF_left_ADDR);
+    //front
+    digitalWrite(TOF_front_XSHUT,HIGH);
     delay(10);
-    if(!tofRight.begin(TOF_right_ADDR)) return false;
-
-    digitalWrite(TOF_front_XSHUT, HIGH);
+    tofFront.begin(TOF_front_ADDR);
+//right
+    digitalWrite(TOF_right_XSHUT,HIGH);
     delay(10);
-    if(!tofFront.begin(TOF_front_ADDR)) return false;
-
-    //imu
-    if(!imu.init()) return false;
-    imu.autoOffsets();//calibration KEEP VERY STILL;
-
-    //RGB color sensor
-    if(!rgbSensor.begin()) return false;
-
-    return true;
+    tofRight.begin(TOF_right_ADDR);
 }
 
-    //TOF METHODS
-
-int Sensors::getLeftDist(){
-    VL53L0X_RangingMeasurementData_t measure;
-    tofLeft.rangingTest(&measure, false);
-    if(measure.RangeStatus != 4) return measure.RangeMilliMeter;
-    return 8000; //max value corridor
+//rgb boot, channel multiplexer
+void Sensors::initRGBs(){
+    rgbSensor= Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_24MS,TCS34725_GAIN_4X);
+    
+    tcaselect(RGB_CHAN_LEFT);
+    rgbSensor.begin();
+    
+    tcaselect(RGB_CHAN_CENTER);
+    rgbSensor.begin();
+    
+    tcaselect(RGB_CHAN_RIGHT);
+    rgbSensor.begin();
 }
 
-int Sensors::getRightDist(){
-    VL53L0X_RangingMeasurementData_t measure;
-    tofRight.rangingTest(&measure, false);
-    if(measure.RangeStatus != 4) return measure.RangeMilliMeter;
-    return 8000;
+//imu boot KEEP STILL
+void Sensors::initIMU(){
+    imu.init();
+    imu.autoOffsets(); 
 }
 
-int Sensors::getFrontDist(){
-    VL53L0X_RangingMeasurementData_t measure;
-    tofFront.rangingTest(&measure, false);
-    if(measure.RangeStatus != 4) return measure.RangeMilliMeter;
-    return 8000;
+
+//second part, data reading funcs
+
+//read all tofs
+ToFDistances Sensors::readToF(){
+    ToFDistances dist;
+    dist.left= tofLeft.readRange();
+    dist.front= tofFront.readRange();
+    dist.right= tofRight.readRange();
+    return dist;
 }
 
-bool Sensors::isWallAhead(){
-    return (getFrontDist() < wall_stop_dist);
+//reads raw data from a specific rgb
+RGBValues Sensors::readRGB(uint8_t channel){
+    tcaselect(channel); //open speifici channel
+    RGBValues vals;
+    rgbSensor.getRawData(&vals.r,&vals.g,&vals.b,&vals.c);
+    return vals;
 }
 
-    //IMU (MPU6500) METHODS
-
-float Sensors::getPitch(){
+//which obstacle depending on tilt. ask about speedbumps, im a little stumped
+ float Sensors::getMaxTilt(){
     xyzFloat angles= imu.getAngles();
-    return angles.y; //tilt on stair and ramps
+    return max(abs(angles.x),abs(angles.y));
 }
 
-MPU6500_WE& Sensors::getIMU(){
-    return imu;
+//current z axis from imu
+float Sensors::getYaw(){
+    xyzFloat angles= imu.getAngles();
+    return angles.z;
+}
+/*
+IR sensors.
+High (1) must mean black or empty air.
+low(0) must mean white tape or standard floor
+*/
+bool Sensors::isLeftOuterBlack(){
+    return digitalRead(IR_outer_left) == HIGH;
 }
 
-    //RGB TCS34725 METHODS
-
-FloorColor Sensors::readFloorColor(bool useCooldown){
-    //if in Pista A
-    if(useCooldown && (millis() - lastColorScoreTime < color_cooldown_ms)){
-        return NONE;
-    }
-
-    uint16_t rRaw, gRaw, bRaw, cRaw;
-    rgbSensor.getRawData(&rRaw, &gRaw, &bRaw, &cRaw);
-
-    if(cRaw== 0) return NONE; //no /0
-
-    //normalize for detection through shadows
-    float r= (float)rRaw/cRaw;
-    float g= (float)gRaw/cRaw;
-    float b= (float)bRaw/cRaw;
-
-    FloorColor detected= classifyColor(r, g, b, cRaw);
-
-    //cooldown if color
-    if(useCooldown && detected != WHITE && detected != NONE){
-        lastColorScoreTime= millis();
-    }
-    return detected;
+bool Sensors::isRightOuterBlack(){
+    return digitalRead(IR_outer_right) == HIGH;
 }
 
-FloorColor Sensors::classifyColor(float r, float g, float b, uint16_t c){
-    //white
-    if(c>2500 && r>0.28 && g>0.28 &&b>0.25) return WHITE;
+bool Sensors::isInnerFrontBlack(){
+    return digitalRead(IR_inner_front) == HIGH;
+}
 
-    //subtractive logic. TEST AND CALLIBRATE
-    if(r>0.45 && g<0.28 && b<0.28) return RED; //final casilla
-    if(r>0.42 && g>0.32 && b<0.22) return ORANGE;
-    if(r>0.36 && g>0.38 && b<0.22) return YELLOW;
-    if(r<0.28 && g>0.42 && b<0.28) return GREEN; //initial casilla
-    if(r<0.25 && g>0.35 && b>0.35) return CYAN;
-    if(r>0.35 && g<0.25 && b>.35) return MAGENTA;
-
-    return NONE;
+bool Sensors::isBackCornerBlack(){
+    return digitalRead(IR_back_corner) == HIGH;
 }
