@@ -1,23 +1,44 @@
-#pragma once
-#include <Arduino.h>
-#include "Config.h"
-#include "Pwm.h"
+#include "Display.h"
 
-//Servo en LEDC (50Hz, 16bit). Angulos exactos vienen de Mecanica en Config.h.
-class Claw {
-public:
-  void begin() { pwmAttach(SERVO_CLAW, PWM_CH_SERVO, 50, 16); setAngle(CLAW_OPEN_DEG); }
+void Display::copy16(char* dst, const char* src) {
+  uint8_t i= 0;
+  for(; i< 16 && src[i]; i++) dst[i]= src[i];
+  for(; i< 16; i++) dst[i]= ' '; //pad: evita lcd.clear() flicker
+  dst[16]= 0;
+}
+
+void Display::begin() {
+  lcd.init();
+  lcd.backlight();
+  status("Booting", "Keep still");
+  update();
+}
+
+void Display::draw(const char* a, const char* b) {
+  if(strcmp(a, cur0)!= 0) { lcd.setCursor(0, 0); lcd.print(a); strcpy(cur0, a); }
+  if(strcmp(b, cur1)!= 0) { lcd.setCursor(0, 1); lcd.print(b); strcpy(cur1, b); }
+}
+
+void Display::status(const char* l0, const char* l1) { copy16(st0, l0); copy16(st1, l1); }
+
+void Display::hold(const char* l0, const char* l1, uint32_t ms) {
+  if(qCount== QN) { qHead= (qHead + 1) % QN; qCount--; } //descarta msg mas antiguo
+  Msg& m= q[(qHead + qCount) % QN];
+  copy16(m.a, l0); copy16(m.b, l1); m.ms= ms;
+  qCount++;
+}
+
+void Display::update() {
+  uint32_t now= millis();
+  if(holding && (int32_t)(now - holdUntil)>= 0) holding= false;
+  if(holding) return;
   
-  void setAngle(float deg) {
-    deg= clampf(deg, 0, 180);
-    float pulseUs= 500.0f + deg * (2000.0f/180.0f); //0.5-2.5 ms
-    pwmWrite(SERVO_CLAW, PWM_CH_SERVO, (uint32_t)(pulseUs/20000.0f * 65535.0f));
+  if(qCount) {
+    Msg& m= q[qHead];
+    draw(m.a, m.b);
+    holdUntil= now + m.ms; holding= true;
+    qHead= (qHead + 1) % QN; qCount--;
+  } else {
+    draw(st0, st1);
   }
-  
-  void open()  { setAngle(CLAW_OPEN_DEG); closed= false; }
-  void close() { setAngle(CLAW_CLOSED_DEG); closed= true; }
-  bool isClosed() const { return closed; }
-  
-private:
-  bool closed= false;
-};
+}
