@@ -1,40 +1,23 @@
-#include "Display.h"
+#pragma once
+#include <Arduino.h>
+#include "Config.h"
+#include "Pwm.h"
 
-Display::Display()
-    : lcd(LCD_ADDR, 16, 2), lastLine0(""), lastLine1(""){}
-
-void Display::begin(){
-    lcd.init();
-    lcd.backlight();
-    showStatus("Booting", "Keep very still");
-}
-
-void Display::showStatus(const String &line0, const String &line1){
-    //only if the text has actually changed will is use the I2C bus
-    if(line0== lastLine0 && line1== lastLine1) return;
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print(line0.substring(0, 16));
-    lcd.setCursor(0,1);
-    lcd.print(line1.substring(0, 16));
-
-    lastLine0= line0;
-    lastLine1= line1;
-}
-
-void Display::showTile(FloorColor color){;
-    showStatus("Tile Detected: ", colorToString(color));
-}
-
-String Display::colorToString(FloorColor color){
-    switch(color){
-        case CYAN: return "CYAN";
-        case YELLOW: return "YELLOW";
-        case ORANGE: return "ORANGE";
-        case MAGENTA: return "MAGENTA";
-        case GREEN: return "START";
-        case RED: return "END";
-        case WHITE: return "WHITE";
-        default: return "NONE";
-    }
-}
+//Servo en LEDC (50Hz, 16bit). Angulos exactos vienen de Mecanica en Config.h.
+class Claw {
+public:
+  void begin() { pwmAttach(SERVO_CLAW, PWM_CH_SERVO, 50, 16); setAngle(CLAW_OPEN_DEG); }
+  
+  void setAngle(float deg) {
+    deg= clampf(deg, 0, 180);
+    float pulseUs= 500.0f + deg * (2000.0f/180.0f); //0.5-2.5 ms
+    pwmWrite(SERVO_CLAW, PWM_CH_SERVO, (uint32_t)(pulseUs/20000.0f * 65535.0f));
+  }
+  
+  void open()  { setAngle(CLAW_OPEN_DEG); closed= false; }
+  void close() { setAngle(CLAW_CLOSED_DEG); closed= true; }
+  bool isClosed() const { return closed; }
+  
+private:
+  bool closed= false;
+};
