@@ -1,7 +1,6 @@
-#pragma once
-#include <Arduino.h>
-#include "Config.h"
-#include "Navigator.h"
+#include "PistaA.h"
+#include "Robot.h"
+#include <string.h>
 
 /*Laberinto 5x5 en matriz 9x9. Inicio en 4,4
 Bits: 0-3 pared N,E,S,W
